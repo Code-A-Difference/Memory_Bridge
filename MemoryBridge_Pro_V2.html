@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MemoryBridge Pro V2</title>
+<style>
+body{font-family:Segoe UI,Arial,sans-serif;margin:0;background:#0b1020;color:#eef2ff}
+.container{max-width:1400px;margin:auto;padding:20px}
+.card{background:#151c33;padding:16px;border-radius:16px;margin:12px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+input,textarea,select{width:100%;padding:10px;margin:4px 0;background:#0f172a;color:white;border:1px solid #334155;border-radius:8px}
+button{padding:10px 12px;border:none;border-radius:8px;background:#60a5fa;font-weight:bold;cursor:pointer}
+.memory{border-left:4px solid #60a5fa}
+.calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.day{background:#0f172a;padding:10px;min-height:70px;border-radius:6px;font-size:12px}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>🧠 MemoryBridge Pro V2</h1>
+
+<div class="grid">
+<div class="card"><h3 id="total">0</h3>Total Memories</div>
+<div class="card"><h3 id="meds">0</h3>Medication Reminders</div>
+<div class="card"><h3 id="today">0</h3>Today's Events</div>
+<div class="card"><h3 id="review">0</h3>Daily Review Items</div>
+</div>
+
+<div class="card">
+<h2>Add Entry</h2>
+<input id="title" placeholder="Title">
+<textarea id="note" placeholder="Details"></textarea>
+<div class="grid">
+<input id="date" type="datetime-local">
+<select id="type">
+<option>Memory</option>
+<option>Medication</option>
+<option>Appointment</option>
+<option>Task</option>
+</select>
+</div>
+<label><input type="checkbox" id="recurring"> Daily Recurring Reminder</label><br><br>
+<input id="photo" type="file" accept="image/*">
+<br><br>
+<button onclick="add()">Save</button>
+<button onclick="voice()">🎤 Voice</button>
+</div>
+
+<div class="card">
+<h2>Calendar</h2>
+<div id="calendar" class="calendar"></div>
+</div>
+
+<div class="card">
+<h2>Daily Review</h2>
+<div id="daily"></div>
+</div>
+
+<div class="card">
+<h2>Timeline</h2>
+<div id="timeline"></div>
+</div>
+</div>
+
+<script>
+let data=JSON.parse(localStorage.getItem("mbv2")||"[]");
+
+if(Notification.permission!=="granted"){
+Notification.requestPermission();
+}
+
+function save(){
+localStorage.setItem("mbv2",JSON.stringify(data));
+}
+
+function add(){
+let file=document.getElementById('photo').files[0];
+if(file){
+let r=new FileReader();
+r.onload=()=>finishAdd(r.result);
+r.readAsDataURL(file);
+}else finishAdd("");
+}
+
+function finishAdd(img){
+data.unshift({
+id:Date.now(),
+title:title.value,
+note:note.value,
+date:date.value,
+type:type.value,
+recurring:recurring.checked,
+image:img
+});
+save();
+render();
+}
+
+function render(){
+total.textContent=data.length;
+meds.textContent=data.filter(x=>x.type==="Medication").length;
+
+let todayStr=new Date().toDateString();
+today.textContent=data.filter(x=>x.date && new Date(x.date).toDateString()===todayStr).length;
+review.textContent=Math.min(5,data.length);
+
+daily.innerHTML=data.slice(0,5).map(x=>
+`<div>📌 <b>${x.title}</b> — ${summary(x.note)}</div>`).join("");
+
+timeline.innerHTML=data.map(x=>`
+<div class="card memory">
+<h3>${x.title}</h3>
+<div>${x.type}</div>
+<div>${x.date||""}</div>
+<p>${x.note}</p>
+${x.image?`<img src="${x.image}" style="max-width:200px;border-radius:8px">`:""}
+<button onclick='speak(${JSON.stringify("Reminder "+x.title+". "+x.note)})'>Read</button>
+</div>`).join("");
+
+renderCalendar();
+checkNotifications();
+}
+
+function summary(t){
+return t.length>80?t.slice(0,80)+"...":t;
+}
+
+function renderCalendar(){
+let now=new Date();
+let y=now.getFullYear(),m=now.getMonth();
+let days=new Date(y,m+1,0).getDate();
+let html="";
+for(let i=1;i<=days;i++){
+let count=data.filter(x=>x.date && new Date(x.date).getDate()===i && new Date(x.date).getMonth()===m).length;
+html+=`<div class="day"><b>${i}</b><br>${count?count+" events":""}</div>`;
+}
+calendar.innerHTML=html;
+}
+
+function checkNotifications(){
+data.forEach(x=>{
+if(!x.date)return;
+let diff=new Date(x.date)-new Date();
+if(diff>0 && diff<60000){
+setTimeout(()=>{
+new Notification(x.title,{body:x.note});
+},diff);
+}
+});
+}
+
+function speak(t){
+speechSynthesis.speak(new SpeechSynthesisUtterance(t));
+}
+
+function voice(){
+let SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+if(!SR)return alert("Not supported");
+let r=new SR();
+r.start();
+r.onresult=e=>note.value+=" "+e.results[0][0].transcript;
+}
+
+render();
+</script>
+</body>
+</html>
