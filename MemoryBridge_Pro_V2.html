@@ -106,7 +106,7 @@ today.textContent=data.filter(x=>x.date && new Date(x.date).toDateString()===tod
 review.textContent=Math.min(5,data.length);
 
 daily.innerHTML=data.slice(0,5).map(x=>
-`<div>📌 <b>${x.title}</b> — ${summary(x.note)}</div>`).join("");
+`<div>📌 <b>${x.title}</b>: ${summary(x.note)}</div>`).join("");
 
 timeline.innerHTML=data.map(x=>`
 <div class="card memory">
